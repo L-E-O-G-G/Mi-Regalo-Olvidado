@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mi regalo olvidado:::</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet" />
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      background: black;
+      overflow: hidden;
+      height: 100%; width: 100%;
+      user-select: none;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    canvas {
+      position: fixed; top: 0; left: 0; z-index: 0;
+    }
+    .message {
+      position: absolute;
+      top: 50%;
+      width: 100%;
+      text-align: center;
+      font-size: 2.8rem;
+      color: white;
+      opacity: 0;
+      transition: opacity 2.5s ease-in-out;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .message.visible {
+      opacity: 1;
+    }
+    #finalText {
+      position: fixed;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Great Vibes', cursive;
+      font-size: 7rem;
+      font-weight: 900;
+      text-align: center;
+      pointer-events: none;
+      z-index: 5;
+      user-select: none;
+      background: linear-gradient(45deg,
+        #ff9a9e,
+        #fad0c4,
+        #fad0c4,
+        #a18cd1,
+        #fbc2eb,
+        #a6c1ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      opacity: 0;
+      transition: opacity 3s ease-in-out;
+      filter: drop-shadow(0 0 6px #ff9a9e);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .message {
+        font-size: 1.8rem;
+        top: 45%;
+      }
+      #finalText {
+        font-size: 4.5rem;
+        top: 35%;
+      }
+    }
+    @media (max-width: 400px) {
+      .message {
+        font-size: 1.4rem;
+        top: 40%;
+      }
+      #finalText {
+        font-size: 3.2rem;
+        top: 30%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="fireworks"></canvas>
+  <div class="message" id="mainText">Eres mi universo, Xochitl 🌸</div>
+  <div id="finalText">Te amo</div>
+
+<script>
+const canvas = document.getElementById("fireworks");
+const ctx = canvas.getContext("2d");
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+const pastelColors = ["#FFC0CB", "#FFD1DC", "#E0BBE4", "#CBAACB", "#FFDFD3", "#D5AAFF", "#B5EAD7"];
+
+function heartShapePoints(size) {
+  const points = [];
+  for (let t = 0; t < Math.PI * 2; t += 0.18) {
+    const x = size * 16 * Math.pow(Math.sin(t), 3);
+    const y = -size * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+    points.push({ x, y });
+  }
+  return points;
+}
+
+class Rocket {
+  constructor(x, targetY, color) {
+    this.x = x;
+    this.y = canvas.height;
+    this.targetY = targetY;
+    this.speed = Math.random() * 4 + 4;
+    this.color = color;
+    this.exploded = false;
+    this.trail = [];
+  }
+  update() {
+    this.trail.push({ x: this.x, y: this.y });
+    if (this.trail.length > 10) this.trail.shift();
+
+    this.y -= this.speed;
+    if (this.y <= this.targetY) {
+      this.exploded = true;
+      return new Firework(this.x, this.y, this.color);
+    }
+    return null;
+  }
+  draw() {
+    ctx.beginPath();
+    for (let i = this.trail.length - 1; i > 0; i--) {
+      const p1 = this.trail[i];
+      const p2 = this.trail[i - 1];
+      ctx.strokeStyle = this.color;
+      ctx.globalAlpha = i / this.trail.length;
+      ctx.lineWidth = 2;
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+class Firework {
+  constructor(x, y, color, text = "Xochitl", scale = 1) {
+    this.x = x;
+    this.y = y;
+    this.particles = [];
+    this.text = text;
+    this.textAlpha = 1;
+    this.textFadeSpeed = 0.008;
+    this.color = color;
+    this.scale = scale;
+    this.exploded = false;
+    this.subFireworks = [];
+    this.explosionDone = false;
+
+    const shape = heartShapePoints(scale);
+    shape.forEach(p => {
+      this.particles.push({
+        x: x,
+        y: y,
+        vx: p.x * (Math.random() * 0.1 + 0.05),
+        vy: p.y * (Math.random() * 0.1 + 0.05),
+        alpha: 1,
+        color: color
+      });
+    });
+  }
+  update() {
+    if (!this.exploded) {
+      this.particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.02;
+        p.alpha -= 0.007;
+      });
+      this.particles = this.particles.filter(p => p.alpha > 0);
+      this.textAlpha -= this.textFadeSpeed;
+
+      if (this.particles.length === 0) {
+        this.exploded = true;
+        this.createSubFireworks();
+      }
+    } else {
+      this.subFireworks.forEach(fw => fw.update());
+      this.subFireworks = this.subFireworks.filter(fw => !fw.explosionDone);
+      if (this.subFireworks.length === 0) this.explosionDone = true;
+    }
+  }
+  createSubFireworks() {
+    this.particles.forEach(p => {
+      if (p.alpha > 0) this.subFireworks.push(new MiniFirework(p.x, p.y, p.color));
+    });
+  }
+  draw() {
+    if (!this.exploded) {
+      this.particles.forEach(p => {
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      if (this.textAlpha > 0) {
+        ctx.globalAlpha = Math.min(this.textAlpha, 1);
+        ctx.fillStyle = this.color;
+        ctx.font = `bold ${46 * this.textAlpha + 10}px 'Great Vibes', cursive`;
+        ctx.textAlign = "center";
+        ctx.fillText(this.text, this.x, this.y);
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      this.subFireworks.forEach(fw => fw.draw());
+    }
+  }
+}
+
+class MiniFirework {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    this.particles = [];
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 / count) * i;
+      this.particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * (Math.random() * 1 + 0.5),
+        vy: Math.sin(angle) * (Math.random() * 1 + 0.5),
+        alpha: 1,
+        color: color
+      });
+    }
+    this.explosionDone = false;
+  }
+  update() {
+    this.particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.03;
+      p.alpha -= 0.02;
+    });
+    this.particles = this.particles.filter(p => p.alpha > 0);
+    if (this.particles.length === 0) this.explosionDone = true;
+  }
+  draw() {
+    this.particles.forEach(p => {
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+}
+
+class Star {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.x = Math.random() * canvas.width;
+    this.y = canvas.height + Math.random() * 50;
+    this.size = Math.random() * 1.5 + 0.5;
+    this.speedY = Math.random() * 0.5 + 0.2;
+    this.alpha = 0;
+    this.fadeIn = true;
+    this.color = pastelColors[Math.floor(Math.random() * pastelColors.length)];
+  }
+  update() {
+    this.y -= this.speedY;
+    if (this.fadeIn) {
+      this.alpha += 0.01;
+      if (this.alpha >= 0.7) this.fadeIn = false;
+    } else {
+      this.alpha -= 0.003;
+    }
+    if (this.alpha <= 0 || this.y < -10) {
+      this.reset();
+    }
+  }
+  draw() {
+    ctx.globalAlpha = this.alpha;
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+const stars = [];
+for (let i = 0; i < 40; i++) stars.push(new Star());
+
+const rockets = [];
+const fireworks = [];
+
+function randomRange(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+function launchRocket() {
+  if (rockets.length < 15) {
+    const x = randomRange(100, canvas.width - 100);
+    const targetY = randomRange(canvas.height / 4, canvas.height / 2);
+    const color = pastelColors[Math.floor(Math.random() * pastelColors.length)];
+    rockets.push(new Rocket(x, targetY, color));
+  }
+}
+
+function update() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  stars.forEach(s => {
+    s.update();
+    s.draw();
+  });
+
+  rockets.forEach((rocket, i) => {
+    rocket.draw();
+    const newFirework = rocket.update();
+    if (newFirework) {
+      fireworks.push(newFirework);
+      rockets.splice(i, 1);
+    }
+  });
+
+  fireworks.forEach((fw, i) => {
+    fw.update();
+    fw.draw();
+    if (fw.explosionDone && fw === bigFirework) {
+      bigFireworkExploded = true;
+    }
+  });
+
+  fireworks.filter(fw => !fw.explosionDone);
+
+  if (!stopLaunching) launchRocket();
+
+  requestAnimationFrame(update);
+}
+
+let messages = [
+  "Ya ha pasado un año desde aquel dia y...",
+  "Esto es para ti...",
+  "Simpre has sido tu y solo tu",
+  "Cada día a tu lado es algo que aprecio",
+  "Cada momento a tu lado es un reaglo",
+  "Cada sonrisa es un curita a mi corazon",
+  "Curaste partes de mi las cuales no dañaste",
+  "Apesar de todo...",
+  "Lo que hemos vivido:::",
+  "Lo que hemos sufrido",
+  "Lo que nos hemos reido",
+  "Lo que nos hemos peleado",
+  "Lo que nos hemos enojado",
+  "Te amo de una forma inexplicable",
+  "Feliz primer año <3",
+];
+
+const mainText = document.getElementById("mainText");
+const finalText = document.getElementById("finalText");
+let currentMessageIndex = 0;
+let stopLaunching = false;
+
+function cycleMessages() {
+  mainText.textContent = messages[currentMessageIndex];
+  mainText.classList.add("visible");
+
+  setTimeout(() => {
+    mainText.classList.remove("visible");
+
+    currentMessageIndex++;
+    if (currentMessageIndex < messages.length) {
+      setTimeout(cycleMessages, 2500);
+    } else {
+      stopLaunching = true;
+      setTimeout(() => {
+     
+        mainText.style.display = "none";
+
+        
+        launchBigFirework();
+      }, 5000);
+    }
+  }, 5500);
+}
+
+let bigFirework;
+let bigFireworkExploded = false;
+
+function launchBigFirework() {
+  const x = canvas.width / 2;
+  const y = canvas.height / 2;
+  bigFirework = new Firework(x, y, "#FF69B4", "Te amo", 4);
+  fireworks.push(bigFirework);
+
+  let checkExplosion = setInterval(() => {
+    if (bigFirework.explosionDone) {
+      clearInterval(checkExplosion);
+      showFinalText();
+    }
+  }, 200);
+}
+
+function showFinalText() {
+  finalText.style.opacity = 1;
+}
+
+// Iniciar ciclo
+cycleMessages();
+update();
+</script>
+</body>
+</html>
